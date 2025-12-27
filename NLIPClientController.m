@@ -575,7 +575,8 @@
 
 - (BOOL)textView:(NSTextView *)textView doCommandBySelector:(SEL)commandSelector {
     // Handle ENTER key to submit message
-    if (commandSelector == @selector(insertNewline:)) {
+    if (commandSelector == @selector(insertNewline:) ||
+	sel_isEqual(commandSelector, @selector(insertNewline:))) {
         NSEvent *currentEvent = [NSApp currentEvent];
         
         // Check if Shift key is pressed
