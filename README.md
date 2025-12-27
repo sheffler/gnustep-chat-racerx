@@ -10,7 +10,7 @@ A native desktop application for sending and receiving NLIP messages, built with
 - Clean, native UI with proper memory management
 - Cross-platform (Linux, BSD, Windows with GNUstep)
 
-![racerx](pics/racerx-0.01.png)
+![racerx](pics/racerx-0.02.png)
 
 ## Prerequisites
 
