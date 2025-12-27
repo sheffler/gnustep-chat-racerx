@@ -7,7 +7,21 @@
 - (id)init {
     self = [super init];
     if (self) {
-        serverUrl = [[NSString alloc] initWithString: @"http://localhost:8000"];
+        // Load server URL from user defaults, or use default if not set
+        NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+        NSString *savedUrl = [defaults stringForKey: @"NLIPServerURL"];
+        
+        NSLog(@"=== Initializing NLIPClientController ===");
+        NSLog(@"Retrieved from defaults: %@", savedUrl ? savedUrl : @"(null)");
+        
+        if (savedUrl && [savedUrl length] > 0) {
+            serverUrl = [savedUrl copy];
+            NSLog(@"✓ Loaded server URL from preferences: %@", serverUrl);
+        } else {
+            serverUrl = [[NSString alloc] initWithString: @"http://localhost:8000"];
+            NSLog(@"✓ Using default server URL: %@", serverUrl);
+        }
+        
         currentSessionUrl = nil;
         urlSession = nil;
         isSending = NO;
@@ -207,6 +221,20 @@
 - (void)serverUrlChanged: (id)sender {
     NSString *newUrl = [[serverUrlField stringValue] stringByTrimmingCharactersInSet: 
                        [NSCharacterSet whitespaceAndNewlineCharacterSet]];
+    
+    // Save to user defaults
+    if ([newUrl length] > 0) {
+        NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+        NSLog(@"=== Saving URL to preferences ===");
+        NSLog(@"URL to save: %@", newUrl);
+        [defaults setObject: newUrl forKey: @"NLIPServerURL"];
+        BOOL syncResult = [defaults synchronize];
+        NSLog(@"✓ Saved to preferences (sync result: %d)", syncResult);
+        
+        // Verify it was saved
+        NSString *verification = [defaults stringForKey: @"NLIPServerURL"];
+        NSLog(@"✓ Verification read: %@", verification);
+    }
     
     // Check if URL has actually changed
     if (currentSessionUrl == nil || ![currentSessionUrl isEqualToString: newUrl]) {
