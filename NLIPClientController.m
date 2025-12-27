@@ -154,7 +154,7 @@
     [inputScrollView release];
     
     // Row 0 (bottom): Buttons
-    GSTable *buttonTable = [[GSTable alloc] initWithNumberOfRows: 1 numberOfColumns: 2];
+    GSTable *buttonTable = [[GSTable alloc] initWithNumberOfRows: 1 numberOfColumns: 3];
     [buttonTable setAutoresizingMask: NSViewWidthSizable];
     
     sendButton = [[NSButton alloc] initWithFrame: NSMakeRect(0, 0, 200, 32)];
@@ -173,8 +173,18 @@
     [clearButton sizeToFit];
     [buttonTable putView: clearButton atRow: 0 column: 1 withMargins: 5];
     
+    NSButton *newChatButton = [[NSButton alloc] initWithFrame: NSMakeRect(0, 0, 200, 32)];
+    [newChatButton setTitle: @"New Chat"];
+    [newChatButton setBezelStyle: NSRoundedBezelStyle];
+    [newChatButton setTarget: self];
+    [newChatButton setAction: @selector(newChat:)];
+    [newChatButton sizeToFit];
+    [buttonTable putView: newChatButton atRow: 0 column: 2 withMargins: 5];
+    [newChatButton release];
+    
     [buttonTable setXResizingEnabled: YES forColumn: 0];
     [buttonTable setXResizingEnabled: YES forColumn: 1];
+    [buttonTable setXResizingEnabled: YES forColumn: 2];
     [buttonTable sizeToFit];
     
     [mainTable putView: buttonTable atRow: 0 column: 0 withMargins: 5];
@@ -553,6 +563,55 @@
     [attrStr release];
     
     [chatView scrollRangeToVisible: NSMakeRange([[chatView string] length], 0)];
+}
+
+- (void)newChat: (id)sender {
+    NSAlert *alert = [[NSAlert alloc] init];
+    [alert setMessageText: @"New Chat"];
+    [alert setInformativeText: @"Start a new chat session? This will clear the chat history and reset the server session."];
+    [alert addButtonWithTitle: @"New Chat"];
+    [alert addButtonWithTitle: @"Cancel"];
+    
+    if ([alert runModal] == NSAlertFirstButtonReturn) {
+        // Clear chat view
+        [chatView setString: @""];
+        
+        // Clear cookies
+        NSHTTPCookieStorage *cookieStorage = [NSHTTPCookieStorage sharedHTTPCookieStorage];
+        NSString *currentUrl = [[serverUrlField stringValue] stringByTrimmingCharactersInSet:
+                               [NSCharacterSet whitespaceAndNewlineCharacterSet]];
+        
+        if ([currentUrl length] > 0) {
+            NSURL *url = [NSURL URLWithString: currentUrl];
+            if (url) {
+                NSArray *cookies = [cookieStorage cookiesForURL: url];
+                for (NSHTTPCookie *cookie in cookies) {
+                    NSLog(@"Deleting cookie: %@", [cookie name]);
+                    [cookieStorage deleteCookie: cookie];
+                }
+            }
+        }
+        
+        // Also clear all cookies to be thorough
+        NSArray *allCookies = [cookieStorage cookies];
+        for (NSHTTPCookie *cookie in allCookies) {
+            [cookieStorage deleteCookie: cookie];
+        }
+        
+        // Invalidate and recreate the URL session
+        if (urlSession != nil) {
+            [urlSession finishTasksAndInvalidate];
+            [urlSession release];
+            urlSession = nil;
+        }
+        
+        [currentSessionUrl release];
+        currentSessionUrl = nil;
+        
+        [self updateStatus: @"New chat session started"];
+        NSLog(@"New chat session created - cookies cleared");
+    }
+    [alert release];
 }
 
 - (void)clearMessages: (id)sender {
