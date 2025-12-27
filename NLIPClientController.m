@@ -147,6 +147,7 @@
     [messageInputView setAutoresizingMask: NSViewWidthSizable];
     [[messageInputView textContainer] setContainerSize: NSMakeSize(1e7, 1e7)];
     [[messageInputView textContainer] setWidthTracksTextView: YES];
+    [messageInputView setDelegate: self];
     
     [inputScrollView setDocumentView: messageInputView];
     [mainTable putView: inputScrollView atRow: 1 column: 0 withMargins: 5];
@@ -570,6 +571,25 @@
 
 - (void)updateStatus: (NSString *)status {
     [statusLabel setStringValue: status];
+}
+
+- (BOOL)textView:(NSTextView *)textView doCommandBySelector:(SEL)commandSelector {
+    // Handle ENTER key to submit message
+    if (commandSelector == @selector(insertNewline:)) {
+        NSEvent *currentEvent = [NSApp currentEvent];
+        
+        // Check if Shift key is pressed
+        if ([currentEvent modifierFlags] & NSShiftKeyMask) {
+            // Shift-Enter: insert newline (default behavior)
+            return NO;
+        } else {
+            // Plain Enter: send message
+            [self sendMessage: self];
+            return YES; // Suppress default behavior
+        }
+    }
+    
+    return NO; // Let other commands be handled normally
 }
 
 - (void)dealloc {
