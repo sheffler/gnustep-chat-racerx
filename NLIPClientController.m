@@ -476,6 +476,113 @@
     [self updateStatus: @"Message sent successfully"];
 }
 
+- (void)applyBoldPattern:(NSMutableAttributedString *)attrString {
+    NSString *string = [attrString string];
+    NSRegularExpression *regex = [NSRegularExpression 
+        regularExpressionWithPattern:@"\\*\\*(.+?)\\*\\*" 
+        options:0 
+        error:nil];
+    
+    NSArray *matches = [regex matchesInString:string options:0 range:NSMakeRange(0, [string length])];
+    
+    // Process matches in reverse to maintain indices
+    for (NSTextCheckingResult *match in [matches reverseObjectEnumerator]) {
+        NSRange fullRange = [match rangeAtIndex:0];
+        NSRange contentRange = [match rangeAtIndex:1];
+        
+        // Get the content without the **
+        NSString *content = [string substringWithRange:contentRange];
+        
+        // Replace the full match with just the content
+        [attrString replaceCharactersInRange:fullRange withString:content];
+        
+        // Apply bold font to the content
+        NSRange newRange = NSMakeRange(fullRange.location, [content length]);
+        [attrString addAttribute:NSFontAttributeName
+                          value:[NSFont boldSystemFontOfSize:13]
+                          range:newRange];
+    }
+}
+
+- (void)applyItalicPattern:(NSMutableAttributedString *)attrString {
+    NSString *string = [attrString string];
+    NSRegularExpression *regex = [NSRegularExpression 
+        regularExpressionWithPattern:@"(?<!\\*)\\*([^*]+?)\\*(?!\\*)" 
+        options:0 
+        error:nil];
+    
+    NSArray *matches = [regex matchesInString:string options:0 range:NSMakeRange(0, [string length])];
+    
+    NSLog(@"=== applyItalicPattern Debug ===");
+    NSLog(@"Input string: %@", string);
+    NSLog(@"Found %lu italic matches", (unsigned long)[matches count]);
+    
+    // Process matches in reverse to maintain indices
+    for (NSTextCheckingResult *match in [matches reverseObjectEnumerator]) {
+        NSRange fullRange = [match rangeAtIndex:0];
+        NSRange contentRange = [match rangeAtIndex:1];
+        
+        // Get the content without the *
+        NSString *content = [string substringWithRange:contentRange];
+        
+        NSLog(@"Match: '%@' at location %lu", [string substringWithRange:fullRange], (unsigned long)fullRange.location);
+        NSLog(@"Content to italicize: '%@'", content);
+        
+        // Replace the full match with just the content
+        [attrString replaceCharactersInRange:fullRange withString:content];
+        
+        // Apply italic font to the content
+        NSRange newRange = NSMakeRange(fullRange.location, [content length]);
+        NSFont *baseFont = [NSFont systemFontOfSize:13];
+        NSFont *italicFont = [[NSFontManager sharedFontManager] 
+            convertFont:baseFont 
+            toHaveTrait:NSItalicFontMask];
+        
+        NSLog(@"Base font: %@", baseFont);
+        NSLog(@"Italic font: %@", italicFont);
+        NSLog(@"Fonts are same: %d", [baseFont isEqual:italicFont]);
+        
+        [attrString addAttribute:NSFontAttributeName
+                          value:italicFont
+                          range:newRange];
+    }
+}
+
+- (NSAttributedString *)simpleMarkdownToAttributedString:(NSString *)markdown {
+    NSMutableAttributedString *result = [[NSMutableAttributedString alloc] init];
+    
+    // Split by lines
+    NSArray *lines = [markdown componentsSeparatedByString:@"\n"];
+    
+    for (NSString *line in lines) {
+        NSMutableAttributedString *attrLine = [[NSMutableAttributedString alloc] 
+            initWithString:[line stringByAppendingString:@"\n"]];
+        
+        // Handle # headers
+        if ([line hasPrefix:@"# "]) {
+            [attrLine addAttribute:NSFontAttributeName 
+                            value:[NSFont boldSystemFontOfSize:18]
+                            range:NSMakeRange(0, [attrLine length])];
+        } else {
+            // Apply default font first
+            [attrLine addAttribute:NSFontAttributeName
+                            value:[NSFont systemFontOfSize:13]
+                            range:NSMakeRange(0, [attrLine length])];
+            
+            // Handle **bold**
+            [self applyBoldPattern:attrLine];
+            
+            // Handle *italic*
+            [self applyItalicPattern:attrLine];
+        }
+        
+        [result appendAttributedString:attrLine];
+        [attrLine release];
+    }
+    
+    return [result autorelease];
+}
+
 - (void)appendMessage: (NSString *)message isSent: (BOOL)sent {
     [self appendMessage: message isSent: sent nlipMessage: nil];
 }
@@ -498,15 +605,10 @@
     [attrStr appendAttributedString: headerStr];
     [headerStr release];
     
-    // Content
-    NSString *content = [message stringByAppendingString: @"\n"];
-    NSMutableAttributedString *contentStr = [[NSMutableAttributedString alloc] 
-                                             initWithString: content];
-    [contentStr addAttribute: NSFontAttributeName
-                       value: [NSFont systemFontOfSize: 13]
-                       range: NSMakeRange(0, [content length])];
+    // Content with markdown formatting
+    NSAttributedString *contentStr = [self simpleMarkdownToAttributedString: message];
     [attrStr appendAttributedString: contentStr];
-    [contentStr release];
+    [attrStr appendAttributedString: [[NSAttributedString alloc] initWithString: @"\n"]];
     
     // Submessages
     if (nlipMsg && [nlipMsg objectForKey: @"submessages"]) {
@@ -531,21 +633,34 @@
                 NSString *subformat = [submsg objectForKey: @"subformat"] ?: @"";
                 NSString *submsgContent = [submsg objectForKey: @"content"] ?: @"(empty)";
                 
-                NSString *submsgText = [NSString stringWithFormat: @"  %lu. %@%@\n  %@\n", 
+                // Submessage header
+                NSString *submsgHeader = [NSString stringWithFormat: @"  %lu. %@%@\n", 
                                        i + 1, format, 
-                                       [subformat length] > 0 ? [NSString stringWithFormat: @" (%@)", subformat] : @"",
-                                       submsgContent];
+                                       [subformat length] > 0 ? [NSString stringWithFormat: @" (%@)", subformat] : @""];
+                NSMutableAttributedString *submsgHeaderStr = [[NSMutableAttributedString alloc]
+                                                             initWithString: submsgHeader];
+                [submsgHeaderStr addAttribute: NSFontAttributeName
+                                       value: [NSFont systemFontOfSize: 12]
+                                       range: NSMakeRange(0, [submsgHeader length])];
+                [submsgHeaderStr addAttribute: NSForegroundColorAttributeName
+                                       value: [NSColor darkGrayColor]
+                                       range: NSMakeRange(0, [submsgHeader length])];
+                [attrStr appendAttributedString: submsgHeaderStr];
+                [submsgHeaderStr release];
                 
-                NSMutableAttributedString *submsgStr = [[NSMutableAttributedString alloc] 
-                                                        initWithString: submsgText];
-                [submsgStr addAttribute: NSFontAttributeName
-                                  value: [NSFont systemFontOfSize: 12]
-                                  range: NSMakeRange(0, [submsgText length])];
-                [submsgStr addAttribute: NSForegroundColorAttributeName
-                                  value: [NSColor darkGrayColor]
-                                  range: NSMakeRange(0, [submsgText length])];
-                [attrStr appendAttributedString: submsgStr];
-                [submsgStr release];
+                // Submessage content with markdown formatting
+                NSAttributedString *submsgContentStr = [self simpleMarkdownToAttributedString: submsgContent];
+                NSMutableAttributedString *indentedContent = [[NSMutableAttributedString alloc]
+                                                              initWithAttributedString: submsgContentStr];
+                // Add indentation and dark gray color
+                NSString *indentedText = [NSString stringWithFormat: @"  %@", [submsgContentStr string]];
+                [indentedContent replaceCharactersInRange: NSMakeRange(0, [indentedContent length])
+                                               withString: indentedText];
+                [indentedContent addAttribute: NSForegroundColorAttributeName
+                                        value: [NSColor darkGrayColor]
+                                        range: NSMakeRange(0, [indentedContent length])];
+                [attrStr appendAttributedString: indentedContent];
+                [indentedContent release];
             }
         }
     }
